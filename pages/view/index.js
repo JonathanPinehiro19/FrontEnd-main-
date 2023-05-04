@@ -1,115 +1,361 @@
 /**
- * Scripts de View
- * By Luferat
- * MIT License
- * 
- * DEBUG By Jaydee.
+ * FrontEndeiros 1.0
+ * MIT License 2023 By Luferat
  **/
 
- $(document).ready(myView)
+/**
+ * 
+ * JavaScript do aplicativo.
+ * Depende de "jQuery" (https://jquery.com/).
+ *
+ * OBS 1: Este é o aplicativo principal, para que o tema (template) do site
+ * opere. Posteriormente, quando necessário, cada página (conteúdo) terá seu
+ * próprio JavaScript, assim, somente o JavaScript necessário será carregado.
+ *
+ * OBS 2: Todas as instruções que iniciam com um cifrão ($) são da biblioteca
+ * jQuery, ou seja, não são JavaScript "puro" (ou vanilla 😉).
+ *
+ * Para saber mais:
+ *  • https://www.w3schools.com/js/
+ *  • https://www.w3schools.com/jsref/
+ *  • https://www.w3schools.com/jquery/
+ **/
 
- // Inicializa a variável de saída.
- var article = author = authorArts = dateAuthor = cmtList = cmtUser = ''
+/**
+ * Algumas configurações do aplicativo.
+ * Dica: você pode acrescentar novas configurações aqui se precisar.
+ **/
+ var apiBaseURL = 'http://localhost:3000/'
+ var app = {
+     siteName: 'FrontEndeiros',
+     siteSlogan: 'Programando para o futuro',
+     apiContactsURL: apiBaseURL + 'contacts',
+     apiArticlesURL: apiBaseURL + 'articles?_sort=date&_order=desc&status=on',
+     apiArticleURL: apiBaseURL + 'articles/',
+     apiUserURL: apiBaseURL + 'users/',
+     apiCommentURL: apiBaseURL + 'comments?_sort=date&_order=desc&status=on',
+     apiCommentPostURL: apiBaseURL + 'comments'
+ }
  
- // Função principal da página "user".
- function myView() {
+ /**
+  * jQuery → Quando o documento estiver pronto, executa a função principal,
+  * 'runApp()'.
+  * 
+  * Referências:
+  *  • https://www.w3schools.com/jquery/jquery_syntax.asp
+  **/
+ $(document).ready(myApp)
  
-     // Obtém o id do artigo da sessão.
-     const artId = sessionStorage.article
+ /**
+  * Este é o aplicativo principal, executado logo após a carga dos documentos
+  * estátivos (HTML e CSS) no navegador.
+  * Aqui incluimos  as chamadas de todas as funções de inicialização e o 
+  * monitoramento dos eventos do aplicativo.
+  *
+  * NOTA! 
+  * Um aplicativo é uma função, um bloco de código que fica armazenado na 
+  * memória do dispositivo e será executado quando for "chamado" (invocado)
+  * pelo nome.
+  * 
+  * Referências:
+  *  • https://www.w3schools.com/js/js_functions.asp
+  **/
+ function myApp() {
  
-     // Apaga id do artigo da sessão.
-     // delete sessionStorage.article
+     // Monitora status de autenticação do usuário
+     firebase.auth().onAuthStateChanged((user) => {
  
-     // Obtém o artigo da API, pelo ID.
-     $.get(app.apiArticleURL + artId)
+         // Se o usuário está logado...
+         if (user) {
  
-         // Armazena o artigo em 'art'.
-         .done((art) => {
+             // Mostra a imagem do usuário e o link de perfil.
+             $('#navUser').html(`<img src="${user.photoURL}" alt="${user.displayName}" referrerpolicy="no-referrer"><span>Perfil</span>`)
+             $('#navUser').attr('href', 'profile')
  
-             // Monta a view (HTML do artigo).
-             article += `
- <h2>${art.title}</h2>
- <small id="dateAuthor" class="dateAuthor"></small>
- <div>${art.content}</div>
- <h3 class="comt-title">Comentários</h3>
- <div id="commentForm"></div>
- <div id="commentList"></div>   
-             `
+             // Se não tem logados...
+         } else {
  
-             // Exibe na página.
-             $('article').html(article)
+             // Mostra o ícone de usuário e o link de login.
+             $('#navUser').html(`<i class="fa-solid fa-user fa-fw"></i><span>Login</span>`)
+             $('#navUser').attr('href', 'login')
+         }
+     });
  
-             // DEBUG → Evita repetição do artigo.
-             article = ''
+     /**
+      * IMPORTANTE!
+      * Para que o roteamento funcione corretamente no "live server", é 
+      * necessário que erros 404 abram a página "404.html".
+      **/
  
-             // Altera o título da página.
-             changeTitle(art.title)
+     // Verifica se o 'localStorage' contém uma rota.
+     if (sessionStorage.path == undefined) {
  
-             // Obter dados do autor.
-             $.get(app.apiUserURL + art.author)
-                 .done((user) => {
-                     // console.log(user)
+         // Se não contém, aponta a rota 'home'.
+         sessionStorage.path = 'home'
+     }
  
-                     // Obtém e formata a data do artigo.
-                     var parts = art.date.split(' ')[0].split('-')
-                     var date = `${parts[2]}/${parts[1]}/${parts[0]} às ${art.date.split(' ')[1]}`
+     // Armazena a rota obtida em 'path'.        
+     var path = sessionStorage.path
  
-                     // Formata o subtítulo do artigo.
-                     $('#dateAuthor').html(`<span>Por ${user.name}&nbsp;</span><span>em ${date}.</span>`)
+     // Apaga o 'localStorage', liberando o recurso.
+     delete sessionStorage.path
  
-                     author = `
- <div class="art-author">
-     <img src="${user.photo}" alt="${user.name}">
-     <h3>${user.name}</h3>
-     <h5>${getAge(user.birth)} anos</h5>
-     <p>${user.bio}</p>
- </div>
-                     `
+     // Carrega a página solicitada pela rota.
+     loadpage(path)
  
-                     // Obtém todos os artigos deste autor.
-                     $.get(app.apiArticleURL + `?author=${user.id}&_limit=5&status=on`)
-                         .done((uArt) => {
-                             authorArts += `
-                             <h3><i class="fa-solid fa-plus fa-fw"></i> Artigos</h3>
-                             <ul class="autor-art-list">
-                             `
-                             uArt.forEach((data) => {
-                                 if (data.id != art.id) {
-                                     authorArts += `<li><a href="view" data-id="${data.id}">${data.title}</a></li>`
-                                 }
-                             });
-                             authorArts += `</ul>`
-                             $('aside').html(author + authorArts)
+     /**
+      * jQuery → Monitora cliques em elementos '<a>' que , se ocorre, chama a função 
+      * routerLink().
+      **/
+     $(document).on('click', 'a', routerLink)
  
-                             // DEBUG → Evita repetição dos artigos do autor.
-                             authorArts = ''
-                         })
-                         .fail()
-                 })
-                 .fail()
+ }
  
-             /**
-              * Processa os comentários do artigo.
-              **/
+ // Faz login do usuário usando o Firebase Authentication
+ function fbLogin() {
+     firebase.auth().signInWithPopup(provider)
+         .then(() => {
+             loadpage('home')
+         })
+ }
  
-             // Obtém todos os comentários deste artigo
-             $.get(app.apiCommentURL + '&article=' + artId)
-                 .done((cmts) => {
-                     cmts.forEach((cmt) => {
-                         cmtList += `
-                             <div class="cmt-item">
-                                 <div class="dateAuthor">Por ${cmt.name} em ${cmt.date}</div>
-                             </div>
-                         `
-                     })
-                 })
-                 .fail()
+ /**
+  * Função que processa o clique em um link.
+  **/
+ function routerLink() {
  
-             // Caso a página não exista...
-         }).fail((error) => {
+     /**
+      * Extrai o valor do atributo "href" do elemento clicado e armazena na 
+      * variável "href".
+      * 
+      * OBS: $(this) faz referência especificamente ao elemento que foi clicado.
+      * 
+      * Referências:
+      *  • https://api.jquery.com/attr/
+      *  • https://www.w3schools.com/jquery/jquery_syntax.asp
+      **/
+     var href = $(this).attr('href').trim().toLowerCase()
  
-             // Mostra a página 404.
+     /**
+      * Se clicou em um link externo (http://... OU https://...) ou em uma 
+      * âncora (#...),devolve o controle da página para o navegador (return true) 
+      * que fará o processamento normal.
+      * 
+      * OBS: Os carateres '||' (pipe pipe) significam a lógica 'OR' (OU) onde, se 
+      * apenas uma das expressões for verdadeira, todas as expressões serão 
+      * verdadeiras. Consulte as referências.
+      * 
+      * Referências:
+      *  • https://www.w3schools.com/js/js_if_else.asp
+      *  • https://www.w3schools.com/jsref/jsref_substr.asp
+      *  • https://www.w3schools.com/js/js_comparisons.asp
+      **/
+     if (
+         href.substring(0, 7) == 'http://' ||
+         href.substring(0, 8) == 'https://' ||
+         href.substring(0, 4) == 'tel:' ||
+         href.substring(0, 7) == 'mailto:' ||
+         href.substring(0, 1) == '#'
+     )
+         // Devolve o controle para o HTML.
+         return true
+ 
+     /**
+      * Se clicou no link para 'login', executa a função de login.
+      */
+     if (href == 'login') {
+         fbLogin()
+         return false
+     }
+ 
+     /**
+      * Carrega a rota solicitada.
+      **/
+     loadpage(href)
+ 
+     /**
+      * Encerra o processamento do link sem fazer mais nada. 'return false' 
+      * bloqueia a ação normal do navegador sobre um link.
+      **/
+     return false
+ }
+ 
+ /**
+  * Carrega uma página no SPA.
+  * O caminho da página é passado como string parâmetro da função e corresponde
+  * a uma das subpastas de "/pages".
+  * 
+  * Para criar uma nova página no aplicativo:
+  *  1. Acesse a pasta "/pages";
+  *  2. Crie uma subpasta com o nome canônico (rota) desta nova página;
+  *     O nome da pasta deve ser curto e usar somente letras e números, nunca
+  *     iniciando com um número e, preferencialmente usando somente letras 
+  *     minúsculas. Por exemplo: /pages/mypage
+  *  3. Crie os 3 componentes da página na subpasta e seu conteúdo:
+  *     • index.html → (Model) documento HTML com o "corpo" da página a ser 
+  *                    carregada no SPA;
+  *     • index.css → (View) documento CSS que estiliza a página.
+  *     • index.js → (Control) JavaScript de controle da página.
+  *  4. Crie os links para a nova página, apontando-os para a rota desta, por 
+  *     exemplo: <a href="mypage">Minha página</a>
+  *  5. Já para carregar esta página no SPA pelo JavaScript, comandamos 
+  *     "loadpage('mypage')", por exemplo.
+  **/
+ function loadpage(page, updateURL = true) {
+ 
+     /*
+      * Monta os caminhos (path) para os componentes da página solicitada, 
+      * à partir do valor da variável "page".
+      * Lembre-se que cada página é formada por 3 componentes:
+      *  • index.html → (Model) documento HTML com o "corpo" da página a ser
+      *                    carregada no SPA;
+      *  • index.css → (View) documento CSS que estiliza a página.
+      *  • index.js → (Control) JavaScript de controle da página.
+      * 
+      * IMPORTANTE!
+      * Mesmo que não seja necessário um CSS ou JavaScript para a página, os 
+      * arquivos "index.css" e "index.js" devem existir na pasta desta página
+      * para evitar "erro 404". Neste caso, insira alguns comentários nos 
+      * documentos.
+      * 
+      * Referências:
+      *  • https://www.w3schools.com/js/js_objects.asp   
+      *  • https://www.w3schools.com/js/js_string_templates.asp
+      */
+     const path = {
+         html: `pages/${page}/index.html`,
+         css: `pages/${page}/index.css`,
+         js: `pages/${page}/index.js`
+     }
+ 
+     /**
+      * jQuery → Faz a requisição (request) do componente HTML da página, a ser 
+      * inserido no SPA.
+      * 
+      * OBS: carregamos o HTML na memória primeiro, para ter certeza que ele 
+      * existe e não vai dar erro 404.
+      * 
+      * Referências:
+      *  • https://www.w3schools.com/jquery/ajax_get.asp
+      **/
+     $.get(path.html)
+ 
+         /**
+          * Quando ocorrer um "response", os dados obtidos serão carregados na 
+          * memória do aplicativo e estarão disponíveis para uso deste.
+          * Neste caso, criamos uma função "sem nome" ()=>{} que obtém os dados
+          * e armazena em "data" para uso posterior.
+          * 
+          * Referências:
+          *  • https://www.w3schools.com/js/js_arrow_function.asp
+          **/
+         .done((data) => {
+ 
+             // Se o documento carregado NÃO é uma página de conteúdo...
+             if (data.trim().substring(0, 9) != '<article>')
+ 
+                 // Carrega a página de erro 404 sem atualizar a rota.
+                 loadpage('e404', false)
+ 
+             // Se o documento é uma página de conteúdo...
+             else {
+ 
+                 // jQuery - Instala o CSS da página na 'index.html'.
+                 $('#pageCSS').attr('href', path.css)
+ 
+                 // jQuery - Carrega o HTML no elemento <main></main>.
+                 $('main').html(data)
+ 
+                 // jQuery - Carrega e executa o JavaScript.
+                 $.getScript(path.js)
+             }
+ 
+         })
+ 
+         // Se ocorreu falha em carregar o documento...
+         .catch(() => {
+ 
+             // Carrega a página de erro 404 sem atualizar a rota.
              loadpage('e404', false)
          })
  
+     /**
+     * Rola a tela para o início, útil para links no final da página.
+     * Referências:
+     *  • https://www.w3schools.com/jsref/met_win_scrollto.asp
+     **/
+     window.scrollTo(0, 0);
+ 
+     /**
+      * Atualiza URL da página com o endereço da rota:
+      * Referências:
+      *  • https://developer.mozilla.org/en-US/docs/Web/API/History/pushState
+      **/
+     if (updateURL) window.history.pushState({}, '', page);
+ 
+ }
+ 
+ /**
+  * Muda o título da página → <title></title>
+  * 
+  * Instruções:
+  * Em cada arquivo "index.js" de cada página, inclua uma chamada para esta 
+  * função, passando como parâmetro o título que deve aparecer.
+  * 
+  * Quando o parâmetro estiver vazio (DEFAULT) o título será:
+  *  • app.sitename - app.siteslogan
+  * Quando o parâmetro for informado, o título será:
+  *  • app.sitename - parâmetro
+  * 
+  **/
+ function changeTitle(title = '') {
+ 
+     /**
+      * Define o título padrão da página.
+      */
+     let pageTitle = app.siteName + ' - '
+ 
+     /**
+      * Se não foi definido um título para a página, 
+      * usa o slogan.
+      **/
+     if (title == '') pageTitle += app.siteSlogan
+ 
+     /**
+      * Se foi definido um título, usa-o.
+      */
+     else pageTitle += title
+ 
+     /**
+      * Escreve o novo título na tag <title></title>.
+      */
+     $('title').html(pageTitle)
+ 
+ }
+ 
+ /**
+  * Calcula a idade com base na data (system date).
+  **/
+ function getAge(sysDate) {
+     // Obtendo partes da data atual.
+     const today = new Date()
+     const tYear = today.getFullYear()
+     const tMonth = today.getMonth() + 1
+     const tDay = today.getDate()
+ 
+     // Obtebdo partes da data original.
+     const parts = sysDate.split('-')
+     const pYear = parts[0]
+     const pMonth = parts[1]
+     const pDay = parts[2]
+ 
+     // Calcula a idade pelo ano.
+     var age = tYear - pYear
+ 
+     // Verificar o mês e o dia.
+     if (pMonth > tMonth) age--
+     else if (pMonth == tMonth && pDay > tDay) age--
+ 
+     // Retorna a idade.
+     return age
  }
